@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Backup — HomeBase</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --surface2: #f0ede6;
+    --border: #e2ddd4;
+    --border2: #cdc8bc;
+    --immich: #16a34a;
+    --immich-light: #22c55e;
+    --immich-pale: #dcfce7;
+    --text: #1a1a1a;
+    --muted: #6b6860;
+    --dim: #b5b0a5;
+    --radius: 12px;
+    --warm: #78716c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  /* ── PASSWORD GATE ── */
+  #gate {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    transition: opacity 0.4s ease;
+  }
+
+  #gate.hiding { opacity: 0; pointer-events: none; }
+
+  .gate-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3rem 2.5rem;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.06);
+  }
+
+  .gate-icon {
+    width: 64px; height: 64px;
+    background: var(--immich-pale);
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
+    margin: 0 auto 1.5rem;
+  }
+
+  .gate-card h2 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+
+  .gate-card p {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+    line-height: 1.65;
+  }
+
+  .pw-input-wrap {
+    position: relative;
+    margin-bottom: 1rem;
+  }
+
+  .pw-input {
+    width: 100%;
+    padding: 14px 48px 14px 16px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .pw-input:focus { border-color: var(--immich); }
+  .pw-input.error { border-color: #ef4444; animation: shake 0.4s ease; }
+
+  .pw-toggle {
+    position: absolute;
+    right: 14px; top: 50%;
+    transform: translateY(-50%);
+    background: none; border: none;
+    cursor: pointer;
+    color: var(--dim);
+    font-size: 18px;
+    padding: 4px;
+  }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%,60% { transform: translateX(-6px); }
+    40%,80% { transform: translateX(6px); }
+  }
+
+  .pw-error {
+    color: #ef4444;
+    font-size: 0.82rem;
+    margin-bottom: 0.75rem;
+    min-height: 20px;
+    text-align: center;
+  }
+
+  .pw-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--immich);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .pw-btn:hover { background: #15803d; transform: translateY(-1px); }
+  .pw-btn:active { transform: translateY(0); }
+
+  .gate-hint {
+    margin-top: 1.5rem;
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
+
+  /* ── MAIN CONTENT (hidden until unlocked) ── */
+  #content { display: none; }
+  #content.unlocked { display: block; }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(247,245,240,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    height: 60px;
+    display: flex;
+    align-items: center;
+    padding: 0 2rem;
+    gap: 1.5rem;
+  }
+  .nav-back {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: flex; align-items: center; gap: 6px;
+    transition: color 0.2s;
+  }
+  .nav-back:hover { color: var(--text); }
+  .nav-sep { color: var(--dim); }
+  .nav-current {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--immich);
+  }
+  .nav-right { margin-left: auto; }
+  .nav-badge {
+    background: var(--immich-pale);
+    border: 1px solid rgba(22,163,74,0.2);
+    color: var(--immich);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 100px;
+  }
+
+  /* HERO */
+  .hero {
+    padding: 5rem 2rem 4rem;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+  .hero-eyebrow {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 1.75rem;
+  }
+  .hero-icon {
+    width: 56px; height: 56px;
+    background: var(--immich-pale);
+    border: 1px solid rgba(22,163,74,0.2);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .hero-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--immich);
+  }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(2.2rem, 5vw, 3.4rem);
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+    margin-bottom: 1.25rem;
+    color: var(--text);
+  }
+  .hero-sub {
+    color: var(--muted);
+    font-size: 1.05rem;
+    font-weight: 300;
+    max-width: 520px;
+    line-height: 1.75;
+    margin-bottom: 2rem;
+  }
+  .platform-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 5px 13px;
+    font-size: 0.78rem;
+    color: var(--warm);
+  }
+
+  /* DIVIDER */
+  .divider { border: none; border-top: 1px solid var(--border); }
+
+  /* SECTION */
+  .section { max-width: 860px; margin: 0 auto; padding: 4rem 2rem; }
+  .section-label {
+    font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--immich); margin-bottom: 0.6rem;
+  }
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    letter-spacing: -0.025em;
+    margin-bottom: 0.75rem;
+  }
+  .section-desc {
+    color: var(--muted); font-size: 0.95rem;
+    line-height: 1.7; max-width: 520px;
+    margin-bottom: 2.5rem; font-weight: 300;
+  }
+
+  /* STEPS */
+  .steps { display: flex; flex-direction: column; }
+  .step {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 0 1.25rem;
+    position: relative;
+  }
+  .step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 29px; top: 50px; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--border), transparent);
+  }
+  .step-num {
+    width: 42px; height: 42px;
+    background: var(--immich-pale);
+    border: 1.5px solid rgba(22,163,74,0.3);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 0.9rem;
+    color: var(--immich);
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+    position: relative; z-index: 1;
+  }
+  .step-body { padding-bottom: 2.5rem; }
+  .step-body h4 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600; font-size: 1rem;
+    margin-bottom: 0.4rem; padding-top: 8px;
+  }
+  .step-body p { color: var(--muted); font-size: 0.9rem; line-height: 1.7; }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 7px; font-size: 0.82em;
+    color: var(--immich);
+  }
+
+  .note {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 6px;
+    background: rgba(22,163,74,0.06);
+    border: 1px solid rgba(22,163,74,0.18);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    color: #166534;
+    margin-top: 0.75rem;
+    line-height: 1.55;
+  }
+
+  .note-warn {
+    background: #fffbeb;
+    border-color: rgba(234,179,8,0.3);
+    color: #854d0e;
+  }
+
+  /* APP STORE BUTTONS */
+  .app-store-row { display: flex; gap: 0.75rem; margin-top: 0.85rem; flex-wrap: wrap; }
+  .store-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 16px;
+    font-size: 0.85rem; font-weight: 500;
+    color: var(--text); text-decoration: none;
+    transition: all 0.2s;
+  }
+  .store-btn:hover { border-color: rgba(22,163,74,0.4); color: var(--immich); transform: translateY(-1px); }
+
+  /* PROGRESS CARD */
+  .progress-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-top: 0.85rem;
+  }
+  .progress-label { font-size: 0.8rem; font-weight: 500; margin-bottom: 0.5rem; color: var(--warm); }
+  .progress-bar-wrap {
+    height: 6px; background: var(--border);
+    border-radius: 100px; overflow: hidden; margin-bottom: 0.5rem;
+  }
+  .progress-bar-fill {
+    height: 100%; width: 65%;
+    background: linear-gradient(90deg, var(--immich), #86efac);
+    border-radius: 100px;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0%,100% { opacity: 1; } 50% { opacity: 0.6; }
+  }
+  .progress-sub { font-size: 0.75rem; color: var(--muted); }
+
+  /* FEATURE GRID */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.4rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .feature-card:hover { border-color: rgba(22,163,74,0.25); transform: translateY(-2px); }
+  .feature-icon { font-size: 1.5rem; margin-bottom: 0.65rem; }
+  .feature-card h4 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600; font-size: 0.92rem;
+    margin-bottom: 0.3rem;
+  }
+  .feature-card p { color: var(--muted); font-size: 0.82rem; line-height: 1.6; }
+
+  /* TIPS GRID */
+  .tips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1rem;
+  }
+  .tip-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.4rem;
+  }
+  .tip-emoji { font-size: 1.4rem; margin-bottom: 0.6rem; }
+  .tip-card h4 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600; font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+  }
+  .tip-card p { color: var(--muted); font-size: 0.83rem; line-height: 1.6; }
+
+  /* FAQ */
+  .faq { display: flex; flex-direction: column; gap: 0.75rem; }
+  .faq-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .faq-q {
+    padding: 1.1rem 1.4rem;
+    font-weight: 500; font-size: 0.92rem;
+    cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+    user-select: none;
+  }
+  .faq-icon {
+    width: 18px; height: 18px;
+    color: var(--dim);
+    transition: transform 0.3s, color 0.2s;
+    flex-shrink: 0; margin-left: 1rem;
+  }
+  .faq-item.open .faq-icon { transform: rotate(45deg); color: var(--immich); }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+  .faq-item.open .faq-a { max-height: 250px; }
+  .faq-a-inner {
+    padding: 0 1.4rem 1.1rem;
+    color: var(--muted); font-size: 0.87rem; line-height: 1.7;
+    border-top: 1px solid var(--border); padding-top: 0.9rem;
+  }
+
+  /* CTA */
+  .cta-banner {
+    background: linear-gradient(135deg, var(--immich-pale), rgba(220,252,231,0.3));
+    border: 1px solid rgba(22,163,74,0.2);
+    border-radius: 16px;
+    padding: 2.5rem;
+    text-align: center;
+  }
+  .cta-banner h3 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 1.3rem;
+    margin-bottom: 0.5rem; letter-spacing: -0.02em;
+  }
+  .cta-banner p { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 13px 26px; border-radius: 10px;
+    font-weight: 500; font-size: 0.9rem;
+    text-decoration: none; transition: all 0.2s;
+    cursor: pointer; border: none;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn-green { background: var(--immich); color: #fff; }
+  .btn-green:hover { background: #15803d; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(22,163,74,0.25); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); margin-left: 0.75rem; }
+  .btn-ghost:hover { color: var(--text); }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem;
+    text-align: center;
+    color: var(--dim);
+    font-size: 0.8rem;
+  }
+
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.5s ease, transform 0.5s ease; }
+  .reveal.visible { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════
+     PASSWORD GATE
+═══════════════════════════════ -->
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-icon">🔒</div>
+    <h2>Family only</h2>
+    <p>This section is for family members. Enter the password to access the photo backup guide.</p>
+    <div class="pw-input-wrap">
+      <input type="password" class="pw-input" id="pwInput" placeholder="Enter password" onkeydown="if(event.key==='Enter')checkPw()">
+      <button class="pw-toggle" onclick="togglePw()" title="Show/hide">👁</button>
+    </div>
+    <p class="pw-error" id="pwError"></p>
+    <button class="pw-btn" onclick="checkPw()">Unlock →</button>
+    <p class="gate-hint">Don't have the password? Just ask me.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     MAIN CONTENT
+═══════════════════════════════ -->
+<div id="content">
+
+  <nav>
+    <a href="index.html" class="nav-back">← HomeBase</a>
+    <span class="nav-sep">/</span>
+    <span class="nav-current">Photo Backup</span>
+    <div class="nav-right">
+      <span class="nav-badge">🔒 Family</span>
+    </div>
+  </nav>
+
+  <div class="hero reveal">
+    <div class="hero-eyebrow">
+      <div class="hero-icon">📷</div>
+      <span class="hero-label">Photo Backup</span>
+    </div>
+    <h1>Your memories,<br>safely at home.</h1>
+    <p class="hero-sub">Immich automatically backs up your phone photos in the background — like iCloud or Google Photos, but stored privately at home. No subscription, no big tech, no snooping.</p>
+    <div class="platform-row">
+      <span class="chip">📱 iPhone</span>
+      <span class="chip">📱 Android</span>
+      <span class="chip">🌐 Web browser</span>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section reveal">
+    <div class="section-label">Part 1 — Installation</div>
+    <h2>Download & connect the app</h2>
+    <p class="section-desc">Do this once. Takes about 5 minutes.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Get your login details from me</h4>
+          <p>I'll set you up with a username, password, and the server address. Just ask — I'll send it over in a text. The address will look something like <code>http://192.168.1.x:2283</code>.</p>
+          <div class="note">🔑 Each person has their own private account. Nobody else can see your photos.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Download the Immich app</h4>
+          <p>Search <strong>"Immich"</strong> in the App Store (iPhone) or Google Play (Android) and install it. It's free.</p>
+          <div class="app-store-row">
+            <a href="https://apps.apple.com/app/immich/id1613945652" target="_blank" class="store-btn">
+              <span>🍎</span> App Store
+            </a>
+            <a href="https://play.google.com/store/apps/details?id=app.alextran.immich" target="_blank" class="store-btn">
+              <span>🤖</span> Google Play
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Connect to the server</h4>
+          <p>Open the app. On the first screen, it asks for a <strong>Server URL</strong>. Paste in the address I sent you, then tap <strong>Next</strong>.</p>
+          <div class="note note-warn">📶 Make sure you're on the home WiFi before doing this step — the server is only reachable from the local network (or via VPN if you're away).</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>Sign in with your credentials</h4>
+          <p>Enter the email and password I gave you and tap <strong>Login</strong>. You should land on the main photo timeline — if it's your first time it'll be empty, that's normal.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h4>Grant photo permissions</h4>
+          <p>Immich will ask for access to your photo library. Tap <strong>Allow Access to All Photos</strong> (not "limited access") — this is what lets it back everything up.</p>
+          <div class="note note-warn">⚠️ If you accidentally choose "Limited Access," go to your phone's Settings → Privacy → Photos → Immich → change it to "All Photos."</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section reveal">
+    <div class="section-label">Part 2 — Backup Setup</div>
+    <h2>Turn on automatic backup</h2>
+    <p class="section-desc">This is the key step — once it's on, your photos back up silently in the background forever.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h4>Open Backup settings</h4>
+          <p>In the Immich app, tap the <strong>profile icon</strong> in the top right, then tap <strong>Backup</strong>. You'll see a toggle at the top.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-body">
+          <h4>Enable background backup</h4>
+          <p>Toggle <strong>Background Backup</strong> on. The app will ask for background app refresh permissions — allow it. This is what lets it upload photos automatically even when the app isn't open.</p>
+          <div class="note">💡 Recommended setting: <strong>WiFi only</strong> (default) — this prevents it from using your cellular data.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-body">
+          <h4>Start your first backup</h4>
+          <p>Tap <strong>Start Backup</strong>. The first backup uploads your entire photo library — this can take a while (hours even, depending on how many photos you have). Leave the app open on your phone while it runs, plugged in if possible.</p>
+          <div class="progress-card">
+            <div class="progress-label">First backup progress</div>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill"></div>
+            </div>
+            <div class="progress-sub">Keep the app open & phone plugged in until this completes</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">9</div>
+        <div class="step-body">
+          <h4>After the first backup — you're done</h4>
+          <p>Once the initial backup finishes, every new photo you take will automatically back up in the background within a few minutes of being taken (as long as you're on WiFi). You never have to think about it again.</p>
+          <div class="note">✅ You'll see a small sync icon in the app when a backup is in progress.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section reveal">
+    <div class="section-label">Part 3 — Using Immich</div>
+    <h2>Viewing & organizing your photos</h2>
+    <p class="section-desc">Immich works a lot like Google Photos — here's what you can do with it.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📅</div>
+        <h4>Timeline view</h4>
+        <p>The main screen shows all your photos in chronological order. Scroll up for older photos, down for recent.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h4>Smart search</h4>
+        <p>Search by anything — "beach 2022", "birthday cake", "dogs." Immich uses AI to understand what's in your photos.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👤</div>
+        <h4>People / Faces</h4>
+        <p>Tap <strong>Explore</strong> to see photos grouped by person. Immich recognizes faces and lets you name them.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📁</div>
+        <h4>Albums</h4>
+        <p>Create albums to organize photos by trip, event, or theme. You can also share albums with other people on the server.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🗺️</div>
+        <h4>Map view</h4>
+        <p>See where all your photos were taken on a map. Tap any cluster to view photos from that location.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💾</div>
+        <h4>Download photos</h4>
+        <p>Long-press any photo to select it, then use the download button to save it back to your phone's camera roll.</p>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section reveal">
+    <div class="section-label">Good to know</div>
+    <h2>Tips & things to keep in mind</h2>
+    <br>
+    <div class="tips-grid">
+      <div class="tip-card">
+        <div class="tip-emoji">📶</div>
+        <h4>WiFi only by default</h4>
+        <p>Backups only run on WiFi so they don't eat your data plan. Keep that in mind if you've been away from home for a while.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-emoji">🔒</div>
+        <h4>Completely private</h4>
+        <p>Your photos are yours alone. Nobody else can see your library, and it's not on any cloud service — just the server at home.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-emoji">📱</div>
+        <h4>Don't delete originals yet</h4>
+        <p>Until you've confirmed backups are working smoothly, keep your photos on your phone too. The server is reliable, but better safe than sorry.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-emoji">🔍</div>
+        <h4>Smart search & albums</h4>
+        <p>Immich can search by face, location, and date — just like Google Photos. Try it out once your library is backed up.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-emoji">🏠</div>
+        <h4>Remote access</h4>
+        <p>Want to view your photos while away from home? It's possible — just ask and I'll help you get connected remotely.</p>
+      </div>
+      <div class="tip-card">
+        <div class="tip-emoji">💾</div>
+        <h4>Storage & limits</h4>
+        <p>There's plenty of space. If you ever get close to running low I'll give you a heads up well in advance — don't worry about it.</p>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section reveal">
+    <div class="section-label">FAQ</div>
+    <h2>Common questions</h2>
+    <br>
+    <div class="faq">
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Is Immich free?
+          <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq-a"><div class="faq-a-inner">Yes, totally free. Immich is open source software. The app costs nothing to download and there's no subscription.</div></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Can I still use iCloud or Google Photos alongside this?
+          <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq-a"><div class="faq-a-inner">Absolutely. Immich doesn't interfere with iCloud or Google Photos. You can run them alongside each other — more backups = more peace of mind.</div></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          What happens to my photos if the server has a problem?
+          <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq-a"><div class="faq-a-inner">Your original photos stay on your phone — Immich is a backup, not a replacement. The server also has its own backup. If anything goes wrong with the server I'll let everyone know and sort it out.</div></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          What if the app shows an error or backup stops?
+          <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq-a"><div class="faq-a-inner">First check you're on WiFi and connected to the home network. If it's still not working, just text me with a screenshot of the error and I'll figure it out.</div></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Can I view my photos on a computer too?
+          <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq-a"><div class="faq-a-inner">Yes! While on the home WiFi, you can open the server address in any web browser and see your full library. Just ask me for the web address.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section reveal">
+    <div class="cta-banner">
+      <h3>Ready to get set up?</h3>
+      <p>Just text me and I'll send you your login details and walk you through it.</p>
+      <a href="index.html" class="btn btn-ghost">← Back home</a>
+    </div>
+  </div>
+
+  <footer>HomeBase · Family Photo Backup · Private & secure</footer>
+</div>
+
+<script>
+  // ── PASSWORD ──
+  // Change "family2024" to whatever you want the password to be
+  const PASSWORD = "family2024";
+
+  function checkPw() {
+    const val = document.getElementById('pwInput').value;
+    const err = document.getElementById('pwError');
+    const input = document.getElementById('pwInput');
+
+    if (val === PASSWORD) {
+      const gate = document.getElementById('gate');
+      gate.classList.add('hiding');
+      setTimeout(() => {
+        gate.style.display = 'none';
+        document.getElementById('content').classList.add('unlocked');
+        initReveal();
+      }, 400);
+    } else {
+      err.textContent = 'Wrong password. Try again or ask me.';
+      input.classList.add('error');
+      input.value = '';
+      setTimeout(() => input.classList.remove('error'), 500);
+    }
+  }
+
+  function togglePw() {
+    const input = document.getElementById('pwInput');
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+
+  // ── SCROLL REVEAL ──
+  function initReveal() {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.06 });
+    document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+  }
+
+  // ── FAQ ──
+  function toggleFaq(el) {
+    const item = el.closest('.faq-item');
+    const open = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!open) item.classList.add('open');
+  }
+</script>
+</body>
+</html>
